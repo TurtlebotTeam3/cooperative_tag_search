@@ -1,6 +1,8 @@
 import rospy
+import math
+import tf
 
-from path_planing.srv import FindPathToGoal
+from path_planing.srv import FindPathToGoal, FindShortestPath
 from path_planing.msg import FullPath, PathPoint
 
 from tag_manager.srv import GetTags
@@ -8,9 +10,12 @@ from tag_manager.msg import TagList, TagPoint
 
 from robot_localisation.srv import Localise
 
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, Pose
+from std_msgs.msg import Bool
 
 from nav_msgs.msg._OccupancyGrid import OccupancyGrid
+
+
 
 class CooperativeTagSearch:
 
@@ -44,29 +49,38 @@ class CooperativeTagSearch:
 
         self.is_navigating = False
         self.waypointsAvailable = False
-
+        
+        print("--- publisher ---")
         # --- Publishers ---
         self.pub_coop_tag_searching = rospy.Publisher('/coop_tag/searching', Point,queue_size=1)
         self.pub_coop_tag_reached = rospy.Publisher('/coop_tag/reached', Point,queue_size=1)
         self.pub_goal = rospy.Publisher('/move_to_goal/goal', Pose, queue_size=1)
 
+        print("--- subscriber ---")
         # --- Subscribers ---
-        self.sub_coop_tag_searching = rospy.Subscriber('/coop_tag/searching', Point,queue_size=1, self._coop_tag_searching_receive)
-        self.sub_coop_tag_reached = rospy.Subscriber('/coop_tag/reached', Point,queue_size=1, self._coop_tag_reached_receive)
+        self.sub_coop_tag_searching = rospy.Subscriber('/coop_tag/searching', Point, self._coop_tag_searching_receive)
+        self.sub_coop_tag_reached = rospy.Subscriber('/coop_tag/reached', Point, self._coop_tag_reached_receive)
         self.pose_subscriber = rospy.Subscriber('/simple_odom_pose',Pose, self._update_pose)
         self.sub_goal_reached = rospy.Subscriber('/move_to_goal/reached', Bool, self._goal_reached_handle)
         
+        print("--- service wait ---")
         # --- Service wait ---
-        rospy.wait_for_service('find_shortest_path')
+        print("1")
+        rospy.wait_for_service('find_shortest_path_service')
+        print("2")
         rospy.wait_for_service('get_tags')
-        rospy.wait_for_service('robot_localisation')
+        print("3")
+        rospy.wait_for_service('localise_robot_service')
 
+        print("--- services ---")
         # --- Services ---
         self.find_shortest_path_service = rospy.ServiceProxy('find_shortest_path_service', FindShortestPath)
         self.get_tags_service = rospy.ServiceProxy('get_tags', GetTags)
         self.robot_localisation_service = rospy.ServiceProxy('localise_robot_service', Localise)
 
+        print("--- setup ---")
         self._setup()
+        print("--- ready ---")
 
     def _setup(self):
         map = rospy.wait_for_message('/map', OccupancyGrid)
@@ -79,7 +93,7 @@ class CooperativeTagSearch:
         Handles messages on topic /coop_tag/searching
         """
         self.tag_list.remove((int(data.Point.y, data.Point.x)))
-        self.tag_list_searching((int(data.Point.y, data.Point.x)))
+        self.tag_list_searching.append((int(data.Point.y, data.Point.x)))
 
     def _coop_tag_reached_receive(self, data):
         """
@@ -114,6 +128,12 @@ class CooperativeTagSearch:
             
             self.robot_pose_available = True
 
+    def _robot_angle(self):
+        orientation_q = self.pose.orientation
+        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        (_, _, yaw) = tf.transformations.euler_from_quaternion(orientation_list)
+        return yaw
+
     def run(self):
         while not rospy.is_shutdown():
             #get the tag list
@@ -134,7 +154,7 @@ class CooperativeTagSearch:
                             self._navigate()
                         else:
                             if len(self.tag_list) > 0:
-                                self.calculate()
+                                self._calculate()
                             else:
                                 print('no more tags')
 
@@ -143,7 +163,7 @@ class CooperativeTagSearch:
         """
         Stores the tags received from the service localy
         """
-        for point in data.tags:
+        for point in data.tags.tags:
             self.tag_list.append((point.y, point.x))
 
     def _find_nearest_tag(self):
@@ -170,7 +190,7 @@ class CooperativeTagSearch:
 
     def _calculate(self):
         # select tag
-        self.waypoints, allpoints, tag_to_approach = self._find_nearest_tag()
+        self.waypoints, _ , tag_to_approach = self._find_nearest_tag()
         
         # send to topic
         appraching = Point
