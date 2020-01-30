@@ -10,7 +10,7 @@ from tag_manager.msg import TagList, TagPoint
 
 from robot_localisation.srv import Localise
 
-from geometry_msgs.msg import Point, Pose
+from geometry_msgs.msg import Pose, Point
 from std_msgs.msg import Bool
 
 from nav_msgs.msg._OccupancyGrid import OccupancyGrid
@@ -21,11 +21,13 @@ class CooperativeTagSearch:
 
     def __init__(self):
         rospy.init_node('cooperative_tag_search', anonymous=True)
-        
+        self.rate = rospy.Rate(20)
+
         self.localised = False
         self.tag_list = []
         self.tag_list_searching = []
         self.tag_list_found = []
+        self.appraching = None
 
         self.waypoints = []
 
@@ -135,12 +137,12 @@ class CooperativeTagSearch:
         return yaw
 
     def run(self):
-        while not rospy.is_shutdown():
-            #get the tag list
-            if len(self.tag_list) == 0:
-                service_response = self.get_tags_service()
-                self._process_tag_list_from_service(service_response)
+        #get the tag list
+        if len(self.tag_list) == 0:
+            service_response = self.get_tags_service()
+            self._process_tag_list_from_service(service_response)
 
+        while not rospy.is_shutdown():
             # start only if pose is available
             if self.robot_pose_available:
                 if not self.localised:
@@ -193,10 +195,12 @@ class CooperativeTagSearch:
         self.waypoints, _ , tag_to_approach = self._find_nearest_tag()
         
         # send to topic
-        appraching = Point
-        appraching.x = tag_to_approach.path_x
-        appraching.y = tag_to_approach.path_y
+        self.appraching = Point
+        self.appraching.x = tag_to_approach.path_x
+        self.appraching.y = tag_to_approach.path_y
         
+        self.pub_coop_tag_searching.publish(self.appraching)
+
         self.waypointsAvailable = True
 
     def _navigate(self):
@@ -219,6 +223,10 @@ class CooperativeTagSearch:
             self._move(x, y)
 
         else:
+            if self.robot_x == self.appraching.x and self.robot_y == self.appraching.y:
+                self.pub_coop_tag_reached.publish(self.appraching)
+                self.appraching = None
+            
             self.is_navigating = False
             self.waypointsAvailable = False
 
@@ -227,11 +235,11 @@ class CooperativeTagSearch:
         Moves the rob2t to a place defined by coordinates x and y.
         """
         print('Navigate to: ' + str(x) + ' | ' + str(y))
-        goal = Pose()
 
         target_x = (x * self.map_resolution) + self.map_offset_x
         target_y = (y * self.map_resolution) + self.map_offset_y
 
+        goal = Pose()
         goal.position.x = target_x
         goal.position.y = target_y
         goal.orientation.w = 1
