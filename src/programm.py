@@ -27,7 +27,7 @@ class CooperativeTagSearch:
         self.tag_list = []
         self.tag_list_searching = []
         self.tag_list_found = []
-        self.appraching = None
+        self.approaching = None
 
         self.waypoints = []
 
@@ -49,8 +49,11 @@ class CooperativeTagSearch:
         self.map_offset_x = 0
         self.map_offset_y = 0
 
+        self.tag_detection_radius = 8
         self.is_navigating = False
         self.waypointsAvailable = False
+
+        self.no_more_tags_printed = False
         
         print("--- publisher ---")
         # --- Publishers ---
@@ -94,15 +97,22 @@ class CooperativeTagSearch:
         """
         Handles messages on topic /coop_tag/searching
         """
-        self.tag_list.remove((int(data.Point.y, data.Point.x)))
-        self.tag_list_searching.append((int(data.Point.y, data.Point.x)))
+        (y_known, x_known) = self._find_tag_in_list(self.tag_list, int(data.x), int(data.y))
+        self.tag_list.remove((y_known, x_known))
+        self.tag_list_searching.append((y_known, x_known))
 
     def _coop_tag_reached_receive(self, data):
         """
         Handles messages on topic /coop_tag/reached
         """
-        self.tag_list_searching.remove((int(data.Point.y, data.Point.x)))
-        self.tag_list_found.remove((int(data.Point.y, data.Point.x)))
+        (y_known, x_known) = self._find_tag_in_list(self.tag_list_searching, int(data.x), int(data.y))
+        self.tag_list_searching.remove((y_known, x_known))
+        self.tag_list_found.remove((y_known, x_known))
+
+    def _find_tag_in_list(self, list, x, y):
+        for (y_known, x_known) in list:
+            if x_known >= (x - self.tag_detection_radius) and x_known <= (x + self.tag_detection_radius) and y_known >= (y - self.tag_detection_radius) and y_known <= (y + self.tag_detection_radius):
+                return (y_known, x_known)
 
     def _update_pose(self, data):
         """
@@ -158,7 +168,9 @@ class CooperativeTagSearch:
                             if len(self.tag_list) > 0:
                                 self._calculate()
                             else:
-                                print('no more tags')
+                                if not self.no_more_tags_printed:
+                                    self.no_more_tags_printed = True
+                                    print('--- no more tags ---')
 
 
     def _process_tag_list_from_service(self, data):
@@ -195,11 +207,11 @@ class CooperativeTagSearch:
         self.waypoints, _ , tag_to_approach = self._find_nearest_tag()
         
         # send to topic
-        self.appraching = Point
-        self.appraching.x = tag_to_approach.path_x
-        self.appraching.y = tag_to_approach.path_y
+        self.approaching = Point()
+        self.approaching.x = tag_to_approach.path_x
+        self.approaching.y = tag_to_approach.path_y
         
-        self.pub_coop_tag_searching.publish(self.appraching)
+        self.pub_coop_tag_searching.publish(self.approaching)
 
         self.waypointsAvailable = True
 
@@ -223,10 +235,6 @@ class CooperativeTagSearch:
             self._move(x, y)
 
         else:
-            if self.robot_x == self.appraching.x and self.robot_y == self.appraching.y:
-                self.pub_coop_tag_reached.publish(self.appraching)
-                self.appraching = None
-            
             self.is_navigating = False
             self.waypointsAvailable = False
 
@@ -252,6 +260,16 @@ class CooperativeTagSearch:
         """
         print('Reached: ' + str(reached))
         if reached:
+            if self.robot_x >= self.approaching.x - 1 and self.robot_x <= self.approaching.x + 1 and self.robot_y >= self.approaching.y - 1 and self.robot_y <= self.approaching.y + 1:
+                self.pub_coop_tag_reached.publish(self.approaching)
+                count = 0
+                while count < 100:
+                    # stay at tag for 2.5 sec
+                    count = count + 1
+                    self.rate.sleep()
+                print('--- tag reached ---')
+                self.approaching = None
+                self.waypoints = []
             self._navigate()
         else:
             self.waypoints = []
