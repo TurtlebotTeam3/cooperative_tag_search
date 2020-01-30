@@ -88,6 +88,9 @@ class CooperativeTagSearch:
         print("--- ready ---")
 
     def _setup(self):
+        """
+        Setup method, does some magic map request and gets the resolution and offsets.
+        """
         map = rospy.wait_for_message('/map', OccupancyGrid)
         self.map_resolution = map.info.resolution
         self.map_offset_x = map.info.origin.position.x
@@ -110,6 +113,9 @@ class CooperativeTagSearch:
         self.tag_list_found.remove((y_known, x_known))
 
     def _find_tag_in_list(self, list, x, y):
+        """
+        Find the tag which represents the given x and y in the given list
+        """
         for (y_known, x_known) in list:
             if x_known >= (x - self.tag_detection_radius) and x_known <= (x + self.tag_detection_radius) and y_known >= (y - self.tag_detection_radius) and y_known <= (y + self.tag_detection_radius):
                 return (y_known, x_known)
@@ -141,6 +147,9 @@ class CooperativeTagSearch:
             self.robot_pose_available = True
 
     def _robot_angle(self):
+        """
+        Calculate the angle of the robot
+        """
         orientation_q = self.pose.orientation
         orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
         (_, _, yaw) = tf.transformations.euler_from_quaternion(orientation_list)
@@ -203,6 +212,9 @@ class CooperativeTagSearch:
         return waypoints, allpoints, waypoints[-1]
 
     def _calculate(self):
+        """
+        Calculates the path to the nearest tag
+        """
         # select tag
         self.waypoints, _ , tag_to_approach = self._find_nearest_tag()
         
@@ -260,11 +272,13 @@ class CooperativeTagSearch:
         """
         print('Reached: ' + str(reached))
         if reached:
+            # check if position is the tag position
             if self.robot_x >= self.approaching.x - 1 and self.robot_x <= self.approaching.x + 1 and self.robot_y >= self.approaching.y - 1 and self.robot_y <= self.approaching.y + 1:
+                # publish that tag reached
                 self.pub_coop_tag_reached.publish(self.approaching)
                 count = 0
                 while count < 100:
-                    # stay at tag for 2.5 sec
+                    # stay at tag for 5 sec
                     count = count + 1
                     self.rate.sleep()
                 print('--- tag reached ---')
