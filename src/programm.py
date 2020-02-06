@@ -45,16 +45,16 @@ class CooperativeTagSearch:
         
         print("--- publisher ---")
         # --- Publishers ---
-        self.pub_coop_tag_searching = rospy.Publisher('/coop_tag/searching', Point,queue_size=1)
-        self.pub_coop_tag_reached = rospy.Publisher('/coop_tag/reached', Point,queue_size=1)
-        self.pub_goal = rospy.Publisher('/move_to_goal/goal', Pose, queue_size=1)
+        self.pub_coop_tag_searching = rospy.Publisher('coop_tag/searching', Point,queue_size=1)
+        self.pub_coop_tag_reached = rospy.Publisher('coop_tag/reached', Point,queue_size=1)
+        self.pub_goal = rospy.Publisher('move_to_goal/goal', Pose, queue_size=1)
 
         print("--- subscriber ---")
         # --- Subscribers ---
-        self.sub_coop_tag_searching = rospy.Subscriber('/coop_tag/searching', Point, self._coop_tag_searching_receive)
-        self.sub_coop_tag_reached = rospy.Subscriber('/coop_tag/reached', Point, self._coop_tag_reached_receive)
-        self.pose_subscriber = rospy.Subscriber('/simple_odom_pose', CustomPose, self._handle_update_pose)
-        self.sub_goal_reached = rospy.Subscriber('/move_to_goal/reached', Bool, self._goal_reached_handle)
+        self.sub_coop_tag_searching = rospy.Subscriber('coop_tag/searching', Point, self._coop_tag_searching_receive)
+        self.sub_coop_tag_reached = rospy.Subscriber('coop_tag/reached', Point, self._coop_tag_reached_receive)
+        self.pose_subscriber = rospy.Subscriber('simple_odom_pose', CustomPose, self._handle_update_pose)
+        self.sub_goal_reached = rospy.Subscriber('move_to_goal/reached', Bool, self._goal_reached_handle)
         
         print("--- service wait ---")
         # --- Service wait ---
@@ -86,12 +86,12 @@ class CooperativeTagSearch:
         """
         Setup method, does some magic map request and gets the resolution and offsets.
         """
-        map = rospy.wait_for_message('/map', OccupancyGrid)
+        map = rospy.wait_for_message('map', OccupancyGrid)
         self.map_info = data.info
 
     def _coop_tag_searching_receive(self, data):
         """
-        Handles messages on topic /coop_tag/searching
+        Handles messages on topic coop_tag/searching
         """
         (y_known, x_known) = self._find_tag_in_list(self.tag_list, int(data.x), int(data.y))
         self.tag_list.remove((y_known, x_known))
@@ -100,7 +100,7 @@ class CooperativeTagSearch:
 
     def _coop_tag_reached_receive(self, data):
         """
-        Handles messages on topic /coop_tag/reached
+        Handles messages on topic coop_tag/reached
         """
         (y_known, x_known) = self._find_tag_in_list(self.tag_list_searching, int(data.x), int(data.y))
         self.tag_list_searching.remove((y_known, x_known))
