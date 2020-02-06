@@ -1,6 +1,7 @@
 import rospy
 import math
 import tf
+import actionlib
 
 from path_planing.srv import FindPathToGoal, FindShortestPath
 from path_planing.msg import FullPath, PathPoint
@@ -13,6 +14,7 @@ from simple_camera.srv import EnableBlobDetection, EnableTagKnownCheck
 from geometry_msgs.msg import Pose, Point, PointStamped
 from std_msgs.msg import Bool
 from nav_msgs.msg import OccupancyGrid, MapMetaData
+from path_drive.msg import PathDriveAction, PathDriveActionGoal, PathDriveActionResult
 
 class CooperativeTagSearch:
 
@@ -49,7 +51,6 @@ class CooperativeTagSearch:
         # --- Publishers ---
         self.pub_coop_tag_searching = rospy.Publisher('coop_tag/searching', Point,queue_size=1)
         self.pub_coop_tag_reached = rospy.Publisher('coop_tag/reached', Point,queue_size=1)
-        self.pub_goal = rospy.Publisher('move_to_goal/goal', Pose, queue_size=1)
 
         print("--- subscriber ---")
         # --- Subscribers ---
@@ -79,6 +80,9 @@ class CooperativeTagSearch:
         self.enable_blob_detection_service = rospy.ServiceProxy('enable_blob_detection_service', EnableBlobDetection)
         self.enable_tag_known_check_service = rospy.ServiceProxy('enable_tag_known_check_service', EnableTagKnownCheck)
 
+        print("--- action server wait ---")
+        self.client = actionlib.SimpleActionClient('path_drive_server', PathDriveAction)
+        self.client.wait_for_server()
 
         print("--- setup ---")
         self._setup()
@@ -246,40 +250,19 @@ class CooperativeTagSearch:
         """
         Navigating to the waypoints
         """
-        # get waypoint and start moving towards it
-        # when success the process next
         self.is_navigating = True
 
-        if(len(self.waypoints) > 0):
-            #print(self.waypoints)
-            point = self.waypoints.pop(0)
-            x = point.path_x
-            y = point.path_y
+        goal = PathDriveActionGoal()
 
-            #print(self.waypoints)
+        goal.goal.waypoints.fullpath = self.waypoints
 
-            # -- move to goal --
-            self._move(x, y)
+        self.client.send_goal(goal.goal)
 
-        else:
-            self.is_navigating = False
-            self.waypointsAvailable = False
+        self.client.wait_for_result()
 
-    def _move(self, x, y):
-        """
-        Moves the rob2t to a place defined by coordinates x and y.
-        """
-        print('Navigate to: ' + str(x) + ' | ' + str(y))
-
-        target_x = (x * self.map_info.resolution) + self.map_info.origin.position.x
-        target_y = (y * self.map_info.resolution) + self.map_info.origin.position.y
-
-        goal = Pose()
-        goal.position.x = target_x
-        goal.position.y = target_y
-        goal.orientation.w = 1
-
-        self.pub_goal.publish(goal)
+        self.waypoints = []
+        self.is_navigating = False
+        self.waypointsAvailable = False
 
     def _goal_reached_handle(self, reached):
         """
