@@ -10,7 +10,7 @@ from simple_odom.msg import CustomPose, PoseConverted
 from robot_localisation.srv import Localise
 from simple_camera.srv import EnableBlobDetection, EnableTagKnownCheck
 
-from geometry_msgs.msg import Pose, Point
+from geometry_msgs.msg import Pose, Point, PointStamped
 from std_msgs.msg import Bool
 from nav_msgs.msg import OccupancyGrid, MapMetaData
 
@@ -96,8 +96,8 @@ class CooperativeTagSearch:
         Handles messages on topic coop_tag/searching
         """
 
-        x = int(math.floor((data.x - self.map_info.origin.position.x)/self.map_info.resolution))
-        y = int(math.floor((data.y - self.map_info.origin.position.x)/self.map_info.resolution))
+        x = int(math.floor((data.point.x - self.map_info.origin.position.x)/self.map_info.resolution))
+        y = int(math.floor((data.point.y - self.map_info.origin.position.x)/self.map_info.resolution))
 
         (y_known, x_known) = self._find_tag_in_list(self.tag_list, x, y)
         self.tag_list.remove((y_known, x_known))
@@ -109,8 +109,8 @@ class CooperativeTagSearch:
         Handles messages on topic coop_tag/reached
         """
 
-        x = int(math.floor((data.x - self.map_info.origin.position.x)/self.map_info.resolution))
-        y = int(math.floor((data.y - self.map_info.origin.position.x)/self.map_info.resolution))
+        x = int(math.floor((data.point.x - self.map_info.origin.position.x)/self.map_info.resolution))
+        y = int(math.floor((data.point.y - self.map_info.origin.position.x)/self.map_info.resolution))
 
         (y_known, x_known) = self._find_tag_in_list(self.tag_list_searching, x, y)
         self.tag_list_searching.remove((y_known, x_known))
@@ -136,7 +136,7 @@ class CooperativeTagSearch:
             self._check_tag()
 
     def _check_tag(self):
-        if self.pose_converted.x >= self.approaching.x - 10 and self.pose_converted.x <= self.approaching.x + 10 and self.pose_converted.y >= self.approaching.y - 10 and self.pose_converted.y <= self.approaching.y + 10:
+        if self.pose_converted.x >= self.approaching.point.x - 10 and self.pose_converted.x <= self.approaching.point.x + 10 and self.pose_converted.y >= self.approaching.point.y - 10 and self.pose_converted.y <= self.approaching.point.y + 10:
             if self.near_tag == False:
                 print("--- blob activated ---")
                 bool_blob = Bool()
@@ -222,17 +222,19 @@ class CooperativeTagSearch:
         self.waypoints, _ , tag_to_approach = self._find_nearest_tag()
 
         
-        self.approaching = Point()
-        self.approaching.x = tag_to_approach.path_x
-        self.approaching.y = tag_to_approach.path_y
+        self.approaching = PointStamped()
+        self.approaching.header.stamp = rospy.Time()
+        self.approaching.point.x = tag_to_approach.path_x
+        self.approaching.point.y = tag_to_approach.path_y
 
         # convert to metric for the others
         x = (tag_to_approach.path_x * self.map_info.resolution) + self.map_info.origin.position.x
         y = (tag_to_approach.path_y * self.map_info.resolution) + self.map_info.origin.position.y
 
-        self.approaching_metric = Point()
-        self.approaching_metric.x = x
-        self.approaching_metric.y = y
+        self.approaching_metric = PointStamped()
+        self.approaching_metric.header.stamp = rospy.Time()
+        self.approaching_metric.point.x = x
+        self.approaching_metric.point.y = y
         
         self.pub_coop_tag_searching.publish(self.approaching_metric)
 
@@ -286,7 +288,7 @@ class CooperativeTagSearch:
         print('Reached: ' + str(reached))
         if reached:
             # check if position is the tag position
-            if self.pose_converted.x >= self.approaching.x - 2 and self.pose_converted.x <= self.approaching.x + 2 and self.pose_converted.y >= self.approaching.y - 2 and self.pose_converted.y <= self.approaching.y + 1:
+            if self.pose_converted.x >= self.approaching.point.x - 2 and self.pose_converted.x <= self.approaching.point.x + 2 and self.pose_converted.y >= self.approaching.point.y - 2 and self.pose_converted.y <= self.approaching.point.y + 1:
                 bool_blob = Bool()
                 bool_blob.data = False
                 self.enable_blob_detection_service(bool_blob)
