@@ -25,6 +25,8 @@ class CooperativeTagSearch:
         self.tag_list_searching = []
         self.tag_list_found = []
         self.approaching = None
+        self.approaching_metric = None
+
         self.near_tag = False
 
         self.waypoints = []
@@ -93,7 +95,11 @@ class CooperativeTagSearch:
         """
         Handles messages on topic coop_tag/searching
         """
-        (y_known, x_known) = self._find_tag_in_list(self.tag_list, int(data.x), int(data.y))
+
+        x = int(math.floor((data.x - self.map_info.origin.position.x)/self.map_info.resolution))
+        y = int(math.floor((data.y - self.map_info.origin.position.x)/self.map_info.resolution))
+
+        (y_known, x_known) = self._find_tag_in_list(self.tag_list, x, y)
         self.tag_list.remove((y_known, x_known))
         #show tag_list list in rviz
         self.tag_list_searching.append((y_known, x_known))
@@ -102,7 +108,11 @@ class CooperativeTagSearch:
         """
         Handles messages on topic coop_tag/reached
         """
-        (y_known, x_known) = self._find_tag_in_list(self.tag_list_searching, int(data.x), int(data.y))
+
+        x = int(math.floor((data.x - self.map_info.origin.position.x)/self.map_info.resolution))
+        y = int(math.floor((data.y - self.map_info.origin.position.x)/self.map_info.resolution))
+
+        (y_known, x_known) = self._find_tag_in_list(self.tag_list_searching, x, y)
         self.tag_list_searching.remove((y_known, x_known))
         self.tag_list_found.append((y_known, x_known))
 
@@ -211,12 +221,20 @@ class CooperativeTagSearch:
         # select tag
         self.waypoints, _ , tag_to_approach = self._find_nearest_tag()
 
-        # send to topic
+        
         self.approaching = Point()
         self.approaching.x = tag_to_approach.path_x
         self.approaching.y = tag_to_approach.path_y
+
+        # convert to metric for the others
+        x = (tag_to_approach.path_x * self.map_info.resolution) + self.map_info.origin.position.x
+        y = (tag_to_approach.path_y * self.map_info.resolution) + self.map_info.origin.position.y
+
+        self.approaching_metric = Point()
+        self.approaching_metric.x = x
+        self.approaching_metric.y = y
         
-        self.pub_coop_tag_searching.publish(self.approaching)
+        self.pub_coop_tag_searching.publish(self.approaching_metric)
 
         #TODO
         #show all waypoints in rviz
@@ -277,7 +295,7 @@ class CooperativeTagSearch:
                 self.enable_tag_known_check_service(bool_tag)
                 
                 # publish that tag reached
-                self.pub_coop_tag_reached.publish(self.approaching)
+                self.pub_coop_tag_reached.publish(self.approaching_metric)
                 count = 0
                 while count < 100:
                     # stay at tag for 5 sec
@@ -285,6 +303,7 @@ class CooperativeTagSearch:
                     self.rate.sleep()
                 print('--- tag reached ---')
                 self.approaching = None
+                self.approaching_metric = None
                 self.waypoints = []
             self._navigate()
         else:
