@@ -49,13 +49,13 @@ class CooperativeTagSearch:
         
         print("--- publisher ---")
         # --- Publishers ---
-        self.pub_coop_tag_searching = rospy.Publisher('coop_tag/searching', Point,queue_size=1)
-        self.pub_coop_tag_reached = rospy.Publisher('coop_tag/reached', Point,queue_size=1)
+        self.pub_coop_tag_searching = rospy.Publisher('coop_tag/searching', PointStamped, queue_size=1)
+        self.pub_coop_tag_reached = rospy.Publisher('coop_tag/reached', PointStamped, queue_size=1)
 
         print("--- subscriber ---")
         # --- Subscribers ---
-        self.sub_coop_tag_searching = rospy.Subscriber('coop_tag/searching', Point, self._coop_tag_searching_receive)
-        self.sub_coop_tag_reached = rospy.Subscriber('coop_tag/reached', Point, self._coop_tag_reached_receive)
+        self.sub_coop_tag_searching = rospy.Subscriber('coop_tag/searching', PointStamped, self._coop_tag_searching_receive)
+        self.sub_coop_tag_reached = rospy.Subscriber('coop_tag/reached', PointStamped, self._coop_tag_reached_receive)
         self.pose_subscriber = rospy.Subscriber('simple_odom_pose', CustomPose, self._handle_update_pose)
         self.sub_goal_reached = rospy.Subscriber('move_to_goal/reached', Bool, self._goal_reached_handle)
         
@@ -93,7 +93,7 @@ class CooperativeTagSearch:
         Setup method, does some magic map request and gets the resolution and offsets.
         """
         map = rospy.wait_for_message('map', OccupancyGrid)
-        self.map_info = data.info
+        self.map_info = map.info
 
     def _coop_tag_searching_receive(self, data):
         """
@@ -171,6 +171,7 @@ class CooperativeTagSearch:
             if self.robot_pose_available:
                 if not self.localised:
                     # localise the robot
+                    result = self.robot_localisation_service()
                     result = self.robot_localisation_service()
                     self.localised = result.localised
                 else:
@@ -268,10 +269,15 @@ class CooperativeTagSearch:
         """
         Handles the notification that goal is reached
         """
-        print('Reached: ' + str(reached))
-        if reached:
+        
+        if reached and self.approaching != None:
             # check if position is the tag position
             if self.pose_converted.x >= self.approaching.point.x - 2 and self.pose_converted.x <= self.approaching.point.x + 2 and self.pose_converted.y >= self.approaching.point.y - 2 and self.pose_converted.y <= self.approaching.point.y + 1:
+                print('--- tag reached ---')
+                
+                self.approaching = None
+                self.approaching_metric = None
+                
                 bool_blob = Bool()
                 bool_blob.data = False
                 self.enable_blob_detection_service(bool_blob)
@@ -281,20 +287,10 @@ class CooperativeTagSearch:
                 
                 # publish that tag reached
                 self.pub_coop_tag_reached.publish(self.approaching_metric)
-                count = 0
-                while count < 100:
-                    # stay at tag for 5 sec
-                    count = count + 1
-                    self.rate.sleep()
-                print('--- tag reached ---')
-                self.approaching = None
-                self.approaching_metric = None
-                self.waypoints = []
-            self._navigate()
-        else:
-            self.waypoints = []
-            self.is_navigating = False
-
+                # cancel current path
+                self.client.cancel_goal()
+                
+            
 if __name__ == "__main__":
     try:
         cts = CooperativeTagSearch()
