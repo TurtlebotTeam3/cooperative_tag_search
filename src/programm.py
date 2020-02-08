@@ -298,8 +298,10 @@ class CooperativeTagSearch:
                 self.approaching_metric = None
                 
                 # cancel current path
-                self.client.cancel_goal()
+                result = self.client.get_state()
 
+                if result == 1:
+                    self.client.cancel_goal()
 
 if __name__ == "__main__":
     try:
