@@ -2,6 +2,9 @@ import rospy
 import math
 import tf
 import actionlib
+import os
+
+from playsound import playsound
 
 from path_planing.srv import FindPathToGoal, FindShortestPath
 from path_planing.msg import FullPath, PathPoint
@@ -21,6 +24,10 @@ class CooperativeTagSearch:
     def __init__(self):
         rospy.init_node('cooperative_tag_search', anonymous=True)
         self.rate = rospy.Rate(20)
+
+        script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
+        rel_path = "../sound/Transformer.mp3"
+        self.sound_file_path = os.path.join(script_dir, rel_path)
 
         self.localised = False
         self.tag_list = []
@@ -282,6 +289,8 @@ class CooperativeTagSearch:
                 bool_tag.data = False
                 self.enable_tag_known_check_service(bool_tag)
                 
+                playsound(self.sound_file_path)
+
                 # publish that tag reached
                 self.pub_coop_tag_reached.publish(self.approaching_metric)
                 
@@ -290,8 +299,8 @@ class CooperativeTagSearch:
                 
                 # cancel current path
                 self.client.cancel_goal()
-                
-            
+
+
 if __name__ == "__main__":
     try:
         cts = CooperativeTagSearch()
