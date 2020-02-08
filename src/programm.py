@@ -274,10 +274,7 @@ class CooperativeTagSearch:
             # check if position is the tag position
             if self.pose_converted.x >= self.approaching.point.x - 2 and self.pose_converted.x <= self.approaching.point.x + 2 and self.pose_converted.y >= self.approaching.point.y - 2 and self.pose_converted.y <= self.approaching.point.y + 1:
                 print('--- tag reached ---')
-                
-                self.approaching = None
-                self.approaching_metric = None
-                
+            
                 bool_blob = Bool()
                 bool_blob.data = False
                 self.enable_blob_detection_service(bool_blob)
@@ -287,6 +284,10 @@ class CooperativeTagSearch:
                 
                 # publish that tag reached
                 self.pub_coop_tag_reached.publish(self.approaching_metric)
+                
+                self.approaching = None
+                self.approaching_metric = None
+                
                 # cancel current path
 
                 result = self.client.get_state()
