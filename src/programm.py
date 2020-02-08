@@ -288,7 +288,11 @@ class CooperativeTagSearch:
                 # publish that tag reached
                 self.pub_coop_tag_reached.publish(self.approaching_metric)
                 # cancel current path
-                self.client.cancel_goal()
+
+                result = self.client.get_state()
+
+                if result == 1:
+                    self.client.cancel_goal()
                 
             
 if __name__ == "__main__":
