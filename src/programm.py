@@ -13,6 +13,7 @@ from tag_manager.msg import TagList, TagPoint
 from simple_odom.msg import CustomPose, PoseConverted
 from robot_localisation.srv import Localise
 from simple_camera.srv import EnableBlobDetection, EnableTagKnownCheck
+from move_to_goal.srv import Move
 
 from geometry_msgs.msg import Pose, Point, PointStamped
 from std_msgs.msg import Bool
@@ -81,6 +82,8 @@ class CooperativeTagSearch:
         rospy.wait_for_service('enable_blob_detection_service')
         print("5")
         rospy.wait_for_service('enable_tag_known_check_service')
+        print("6")
+        rospy.wait_for_service('drive_back_and_rotate')
         
         print("--- services ---")
         # --- Services ---
@@ -89,6 +92,7 @@ class CooperativeTagSearch:
         self.robot_localisation_service = rospy.ServiceProxy('localise_robot_service', Localise)
         self.enable_blob_detection_service = rospy.ServiceProxy('enable_blob_detection_service', EnableBlobDetection)
         self.enable_tag_known_check_service = rospy.ServiceProxy('enable_tag_known_check_service', EnableTagKnownCheck)
+        self.drive_back_and_rotate_service = rospy.ServiceProxy('drive_back_and_rotate', EnableTagKnownCheck)
 
         print("--- action server wait ---")
         self.client = actionlib.SimpleActionClient('path_drive_server', PathDriveAction)
@@ -197,7 +201,8 @@ class CooperativeTagSearch:
                             else:
                                 if not self.calculate_next:
                                     # Robot moved to marker but camera did not approve arrival at marker
-                                    
+                                    result = self.drive_back_and_rotate_service()
+                                    print "Move finished" + str(result.move_finished)                                    
                                     print("--- make magic ---")
                                 else:
                                     if not self.no_more_tags_printed:
