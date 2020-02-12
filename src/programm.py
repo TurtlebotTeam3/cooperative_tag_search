@@ -28,6 +28,7 @@ class CooperativeTagSearch:
         script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
         rel_path = "../sound/Transformer.mp3"
         self.sound_file_path = os.path.join(script_dir, rel_path)
+        playsound(self.sound_file_path)
 
         self.localised = False
         self.tag_list = []
@@ -53,6 +54,8 @@ class CooperativeTagSearch:
         self.waypointsAvailable = False
 
         self.no_more_tags_printed = False
+
+        self.calculate_next = False
         
         print("--- publisher ---")
         # --- Publishers ---
@@ -64,7 +67,7 @@ class CooperativeTagSearch:
         self.sub_coop_tag_searching = rospy.Subscriber('coop_tag/searching', PointStamped, self._coop_tag_searching_receive)
         self.sub_coop_tag_reached = rospy.Subscriber('coop_tag/reached', PointStamped, self._coop_tag_reached_receive)
         self.pose_subscriber = rospy.Subscriber('simple_odom_pose', CustomPose, self._handle_update_pose)
-        self.sub_goal_reached = rospy.Subscriber('move_to_goal/reached', Bool, self._goal_reached_handle)
+        self.sub_goal_reached = rospy.Subscriber('move_to_tag/reached', Bool, self._goal_reached_handle)
         
         print("--- service wait ---")
         # --- Service wait ---
@@ -169,6 +172,7 @@ class CooperativeTagSearch:
             self.near_tag = False
 
     def run(self):
+        self.calculate_next = True
         #get the tag list
         if len(self.tag_list) == 0:
             service_response = self.get_tags_service()
@@ -187,12 +191,18 @@ class CooperativeTagSearch:
                         if(self.waypointsAvailable == True):
                             self._navigate()
                         else:
-                            if len(self.tag_list) > 0:
+                            if len(self.tag_list) > 0 and self.calculate_next:
+                                self.calculate_next = False
                                 self._calculate()
                             else:
-                                if not self.no_more_tags_printed:
-                                    self.no_more_tags_printed = True
-                                    print('--- no more tags ---')
+                                if not self.calculate_next:
+                                    # Robot moved to marker but camera did not approve arrival at marker
+                                    
+                                    print("--- make magic ---")
+                                else:
+                                    if not self.no_more_tags_printed:
+                                        self.no_more_tags_printed = True
+                                        print('--- no more tags ---')
 
 
     def _process_tag_list_from_service(self, data):
@@ -279,29 +289,31 @@ class CooperativeTagSearch:
         
         if reached and self.approaching != None:
             # check if position is the tag position
-            if self.pose_converted.x >= self.approaching.point.x - 2 and self.pose_converted.x <= self.approaching.point.x + 2 and self.pose_converted.y >= self.approaching.point.y - 2 and self.pose_converted.y <= self.approaching.point.y + 1:
-                print('--- tag reached ---')
+            #if self.pose_converted.x >= self.approaching.point.x - 2 and self.pose_converted.x <= self.approaching.point.x + 2 and self.pose_converted.y >= self.approaching.point.y - 2 and self.pose_converted.y <= self.approaching.point.y + 1:
+            print('--- tag reached ---')
+        
+            bool_blob = Bool()
+            bool_blob.data = False
+            self.enable_blob_detection_service(bool_blob)
+            bool_tag = Bool()
+            bool_tag.data = False
+            self.enable_tag_known_check_service(bool_tag)
+
+            # publish that tag reached
+            self.pub_coop_tag_reached.publish(self.approaching_metric)
             
-                bool_blob = Bool()
-                bool_blob.data = False
-                self.enable_blob_detection_service(bool_blob)
-                bool_tag = Bool()
-                bool_tag.data = False
-                self.enable_tag_known_check_service(bool_tag)
-                
-                playsound(self.sound_file_path)
+            self.approaching = None
+            self.approaching_metric = None
+            
+            # cancel current path
+            result = self.client.get_state()
 
-                # publish that tag reached
-                self.pub_coop_tag_reached.publish(self.approaching_metric)
-                
-                self.approaching = None
-                self.approaching_metric = None
-                
-                # cancel current path
-                result = self.client.get_state()
+            if result == 1:
+                self.client.cancel_goal()
 
-                if result == 1:
-                    self.client.cancel_goal()
+            playsound(self.sound_file_path)
+
+            self.calculate_next = True
 
 if __name__ == "__main__":
     try:
