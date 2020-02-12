@@ -199,7 +199,7 @@ class CooperativeTagSearch:
                                 self.calculate_next = False
                                 self._calculate()
                             else:
-                                if not self.calculate_next:
+                                if not self.calculate_next and len(self.tag_list) > 0:
                                     # Robot moved to marker but camera did not approve arrival at marker
                                     result = self.drive_back_and_rotate_service()
                                     print "Move finished" + str(result.move_finished)                                    
