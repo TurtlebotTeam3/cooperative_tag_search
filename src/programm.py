@@ -114,9 +114,10 @@ class CooperativeTagSearch:
         y = int(math.floor((data.point.y - self.map_info.origin.position.x)/self.map_info.resolution))
 
         (y_known, x_known) = self._find_tag_in_list(self.tag_list, x, y)
-        self.tag_list.remove((y_known, x_known))
-        #show tag_list list in rviz
-        self.tag_list_searching.append((y_known, x_known))
+        if y_known != None and x_known != None:
+            self.tag_list.remove((y_known, x_known))
+            #show tag_list list in rviz
+            self.tag_list_searching.append((y_known, x_known))
 
     def _coop_tag_reached_receive(self, data):
         """
@@ -127,8 +128,9 @@ class CooperativeTagSearch:
         y = int(math.floor((data.point.y - self.map_info.origin.position.x)/self.map_info.resolution))
 
         (y_known, x_known) = self._find_tag_in_list(self.tag_list_searching, x, y)
-        self.tag_list_searching.remove((y_known, x_known))
-        self.tag_list_found.append((y_known, x_known))
+        if y_known != None and x_known != None:
+            self.tag_list_searching.remove((y_known, x_known))
+            self.tag_list_found.append((y_known, x_known))
 
     def _find_tag_in_list(self, list, x, y):
         """
@@ -137,6 +139,8 @@ class CooperativeTagSearch:
         for (y_known, x_known) in list:
             if x_known >= (x - self.tag_detection_radius) and x_known <= (x + self.tag_detection_radius) and y_known >= (y - self.tag_detection_radius) and y_known <= (y + self.tag_detection_radius):
                 return (y_known, x_known)
+
+        return (None, None)
 
     def _handle_update_pose(self, data):
         """
