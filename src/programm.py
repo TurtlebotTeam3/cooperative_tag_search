@@ -3,6 +3,7 @@ import math
 import tf
 import actionlib
 import os
+import time
 
 from playsound import playsound
 
@@ -13,6 +14,7 @@ from tag_manager.msg import TagList, TagPoint
 from simple_odom.msg import CustomPose, PoseConverted
 from robot_localisation.srv import Localise
 from simple_camera.srv import EnableBlobDetection, EnableTagKnownCheck
+from move_to_goal.srv import Move
 
 from geometry_msgs.msg import Pose, Point, PointStamped
 from std_msgs.msg import Bool
@@ -81,6 +83,8 @@ class CooperativeTagSearch:
         rospy.wait_for_service('enable_blob_detection_service')
         print("5")
         rospy.wait_for_service('enable_tag_known_check_service')
+        print("6")
+        rospy.wait_for_service('drive_back_and_rotate')
         
         print("--- services ---")
         # --- Services ---
@@ -89,6 +93,7 @@ class CooperativeTagSearch:
         self.robot_localisation_service = rospy.ServiceProxy('localise_robot_service', Localise)
         self.enable_blob_detection_service = rospy.ServiceProxy('enable_blob_detection_service', EnableBlobDetection)
         self.enable_tag_known_check_service = rospy.ServiceProxy('enable_tag_known_check_service', EnableTagKnownCheck)
+        self.drive_back_and_rotate_service = rospy.ServiceProxy('drive_back_and_rotate', Move)
 
         print("--- action server wait ---")
         self.client = actionlib.SimpleActionClient('path_drive_server', PathDriveAction)
@@ -199,10 +204,17 @@ class CooperativeTagSearch:
                                 self.calculate_next = False
                                 self._calculate()
                             else:
+                                time.sleep(7.5)
                                 if not self.calculate_next and len(self.tag_list) > 0:
                                     # Robot moved to marker but camera did not approve arrival at marker
-                                    
-                                    print("--- make magic ---")
+                                        print "start drive back and rotate"
+                                        result = self.drive_back_and_rotate_service()
+                                        print "Move finished" + str(result.move_finished.data) 
+                                        if result.move_finished.data == False:
+                                            time.sleep(7.5)
+                                            self.calculate_next = True 
+                                        else:
+                                            break
                                 else:
                                     if not self.no_more_tags_printed:
                                         self.no_more_tags_printed = True
@@ -215,8 +227,6 @@ class CooperativeTagSearch:
         """
         for point in data.tags.tags:
             self.tag_list.append((point.y, point.x))
-        #TODO
-        #show tag_list list in rviz
         
 
     def _find_nearest_tag(self):
@@ -264,8 +274,6 @@ class CooperativeTagSearch:
         
         self.pub_coop_tag_searching.publish(self.approaching_metric)
 
-        #TODO
-        #show all waypoints in rviz
         self.waypointsAvailable = True
 
     def _navigate(self):
@@ -318,6 +326,7 @@ class CooperativeTagSearch:
             playsound(self.sound_file_path)
 
             self.calculate_next = True
+            print "cool"
 
 if __name__ == "__main__":
     try:
