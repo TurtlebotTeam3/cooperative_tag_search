@@ -201,20 +201,18 @@ class CooperativeTagSearch:
                             self._navigate()
                         else:
                             if len(self.tag_list) > 0 and self.calculate_next:
+                                # robot moved to marker and there are still some more to process
                                 self.calculate_next = False
                                 self._calculate()
                             else:
                                 time.sleep(7.5)
                                 if not self.calculate_next and len(self.tag_list) > 0:
                                     # Robot moved to marker but camera did not approve arrival at marker
-                                        print "start drive back and rotate"
-                                        result = self.drive_back_and_rotate_service()
-                                        print "Move finished" + str(result.move_finished.data) 
-                                        if result.move_finished.data == False:
-                                            time.sleep(7.5)
-                                            self.calculate_next = True 
-                                        else:
-                                            break
+                                    print "start drive back and rotate"
+                                    result = self.drive_back_and_rotate_service()
+                                    print "Move finished" + str(result.move_finished.data) 
+                                    if result.move_finished.data == True:
+                                        self.calculate_next = True
                                 else:
                                     if not self.no_more_tags_printed:
                                         self.no_more_tags_printed = True
