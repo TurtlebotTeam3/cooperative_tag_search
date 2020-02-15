@@ -47,7 +47,7 @@ class CooperativeTagSearch:
         self.pose_converted = PoseConverted()
 
         self.blowUpCellNum = 3
-        self.robot_radius = 1
+        self.robot_radius = 2
 
         self.map_info = MapMetaData()
 
@@ -210,7 +210,7 @@ class CooperativeTagSearch:
                                     # Robot moved to marker but camera did not approve arrival at marker
                                     print "start drive back and rotate"
                                     result = self.drive_back_and_rotate_service()
-                                    print "Move finished" + str(result.move_finished.data) 
+                                    print "Move finished: " + str(result.move_finished.data) 
                                     if result.move_finished.data == True:
                                         self.calculate_next = True
                                 else:
