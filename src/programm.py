@@ -192,8 +192,12 @@ class CooperativeTagSearch:
                 if not self.localised:
                     # localise the robot
                     result = self.robot_localisation_service()
-                    result = self.robot_localisation_service()
-                    self.localised = result.localised
+                    #result = self.robot_localisation_service()
+                    location_ok = raw_input("Localisation ok? (y for Yes / n for No) : ")
+                    if location_ok == "y" or location_ok == "Y":
+                        self.localised = result.localised
+                    else:
+                        self.localised = False
                 else:
                     # find nearest tag or navigate if a goal is available
                     if not self.is_navigating:
