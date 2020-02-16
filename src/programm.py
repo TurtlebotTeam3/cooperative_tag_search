@@ -61,13 +61,13 @@ class CooperativeTagSearch:
         
         print("--- publisher ---")
         # --- Publishers ---
-        self.pub_coop_tag_searching = rospy.Publisher('coop_tag/searching', PointStamped, queue_size=1)
-        self.pub_coop_tag_reached = rospy.Publisher('coop_tag/reached', PointStamped, queue_size=1)
+        self.pub_coop_tag_searching = rospy.Publisher('/coop_tag/searching', PointStamped, queue_size=1)
+        self.pub_coop_tag_reached = rospy.Publisher('/coop_tag/reached', PointStamped, queue_size=1)
 
         print("--- subscriber ---")
         # --- Subscribers ---
-        self.sub_coop_tag_searching = rospy.Subscriber('coop_tag/searching', PointStamped, self._coop_tag_searching_receive)
-        self.sub_coop_tag_reached = rospy.Subscriber('coop_tag/reached', PointStamped, self._coop_tag_reached_receive)
+        self.sub_coop_tag_searching = rospy.Subscriber('/coop_tag/searching', PointStamped, self._coop_tag_searching_receive)
+        self.sub_coop_tag_reached = rospy.Subscriber('/coop_tag/reached', PointStamped, self._coop_tag_reached_receive)
         self.pose_subscriber = rospy.Subscriber('simple_odom_pose', CustomPose, self._handle_update_pose)
         self.sub_goal_reached = rospy.Subscriber('move_to_tag/reached', Bool, self._goal_reached_handle)
         
@@ -123,6 +123,8 @@ class CooperativeTagSearch:
             self.tag_list.remove((y_known, x_known))
             #show tag_list list in rviz
             self.tag_list_searching.append((y_known, x_known))
+            if y_known != self.approaching.point.y and x_known != self.approaching.point.x:
+                print("Other robot is searching for: x=" + str(x_known) + " y=" + str(y_known))
 
     def _coop_tag_reached_receive(self, data):
         """
@@ -136,6 +138,9 @@ class CooperativeTagSearch:
         if y_known != None and x_known != None:
             self.tag_list_searching.remove((y_known, x_known))
             self.tag_list_found.append((y_known, x_known))
+            if y_known != self.approaching.point.y and x_known != self.approaching.point.x:
+                print("Other robot is reached: x=" + str(x_known) + " y=" + str(y_known))
+
 
     def _find_tag_in_list(self, list, x, y):
         """
@@ -219,8 +224,9 @@ class CooperativeTagSearch:
                                         self.calculate_next = True
                                 else:
                                     if not self.no_more_tags_printed:
-                                        self.no_more_tags_printed = True
                                         print('--- no more tags ---')
+                                        self.no_more_tags_printed = True
+                                        
 
 
     def _process_tag_list_from_service(self, data):
@@ -262,6 +268,7 @@ class CooperativeTagSearch:
         
         self.approaching = PointStamped()
         self.approaching.header.stamp = rospy.Time()
+        self.approaching.header.frame_id = "Turtle4711/map"
         self.approaching.point.x = tag_to_approach.path_x
         self.approaching.point.y = tag_to_approach.path_y
 
@@ -271,6 +278,7 @@ class CooperativeTagSearch:
 
         self.approaching_metric = PointStamped()
         self.approaching_metric.header.stamp = rospy.Time()
+        self.approaching.header.frame_id = "Turtle4711/map"
         self.approaching_metric.point.x = x
         self.approaching_metric.point.y = y
         
@@ -316,9 +324,6 @@ class CooperativeTagSearch:
             # publish that tag reached
             self.pub_coop_tag_reached.publish(self.approaching_metric)
             
-            self.approaching = None
-            self.approaching_metric = None
-            
             # cancel current path
             result = self.client.get_state()
 
@@ -326,6 +331,9 @@ class CooperativeTagSearch:
                 self.client.cancel_goal()
 
             playsound(self.sound_file_path)
+
+            self.approaching = None
+            self.approaching_metric = None
 
             self.calculate_next = True
             print "cool"
