@@ -1,0 +1,25 @@
+<launch>
+    <node pkg="simple_odom" type="program.py" name="simple_odom" output="screen"/>
+    
+    <node pkg="move_to_goal" type="moveToGoal.py" name="move_to_goal" output="screen">
+        <param name="avoid_obstacle" value="True" />
+    </node>
+
+    <node pkg="path_planing" type="path_planing_wayfront.py" name="path_planing" output="screen"/>
+
+    <node pkg="simple_camera" type="camera.py" name="camera" output="screen">
+        <param name="minAreaSize" value="2300"/>
+    </node>
+
+    <node pkg="tag_manager" type="manager.py" name="tag_manager" output="screen">
+        <param name="tag_file" value="/home/daniel/catkin_ws/src/tag_manager/StoredTag/tags.store"/>
+    </node>
+
+    <node pkg="move_to_tag" type="move_to_tag.py" name="move_to_tag" output="screen"/>
+
+    <node pkg="path_drive" type="server.py" name="path_drive_server" output="screen"/>
+
+    <node pkg="robot_localisation" type="program.py" name="robot_localisation" output="screen"/>
+
+    <node pkg="cooperative_tag_search" type="program.py" name="cooperative_tag_search" output="screen"/>
+</launch>
