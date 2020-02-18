@@ -97,6 +97,7 @@ class CooperativeTagSearch:
         self.drive_back_and_rotate_service = rospy.ServiceProxy('drive_back_and_rotate', Move)
 
         rospy.loginfo("--- action server wait ---")
+        self.action_result = None
         self.client = actionlib.SimpleActionClient('path_drive_server', PathDriveAction)
         self.client.wait_for_server()
 
@@ -215,23 +216,28 @@ class CooperativeTagSearch:
                         if(self.waypointsAvailable == True):
                             self._navigate()
                         else:
+                            #wait to give goal reach some time
+                            time.sleep(8)
                             if len(self.tag_list) > 0 and self.calculate_next:
                                 # robot moved to marker and there are still some more to process
                                 self.calculate_next = False
                                 self._calculate()
                             else:
-                                time.sleep(7.5)
-                                if not self.calculate_next and len(self.tag_list) > 0:
+                                if self.action_result.reached_last_goal.data:
+                                    # the last way point was reached but the tag not seen
                                     # Robot moved to marker but camera did not approve arrival at marker
+                                    # drive back and rotate becaus the tag must be somewhere near
                                     rospy.loginfo("start drive back and rotate")
                                     result = self.drive_back_and_rotate_service()
                                     rospy.loginfo("Move finished: " + str(result.move_finished.data)) 
-                                    if result.move_finished.data == True:
-                                        self.calculate_next = True
                                 else:
-                                    if not self.no_more_tags_printed and len(self.tag_list) == 0:
-                                        rospy.loginfo('--- no more tags ---')
-                                        self.no_more_tags_printed = True
+                                    if not self.calculate_next and len(self.tag_list) > 0:
+                                        # driving was cancled -> recalculate the path
+                                        self._calculate_again_to_last()
+                                    else:
+                                        if not self.no_more_tags_printed and len(self.tag_list) == 0:
+                                            rospy.loginfo('--- no more tags ---')
+                                            self.no_more_tags_printed = True
                                         
 
 
@@ -292,6 +298,26 @@ class CooperativeTagSearch:
 
         self.waypointsAvailable = True
 
+    def _calculate_again_to_last(self):
+        """
+        Calculates the path to the last tag
+        """
+        rospy.loginfo("Recalculate path to tag")
+        # create the list of goals
+        goals = FullPath()
+        point = PathPoint()
+        point.path_x = self.approaching.point.x
+        point.path_y = self.approaching.point.y
+        goals.fullpath.append(point)
+
+        # make the request
+        service_response = self.find_shortest_path_service(self.blowUpCellNum, self.pose_converted.x, self.pose_converted.y, self.robot_radius, goals)
+        
+        # extract data
+        self.waypoints = service_response.waypoints.fullpath
+
+        self.waypointsAvailable = True
+
     def _navigate(self):
         """
         Navigating to the waypoints
@@ -305,6 +331,8 @@ class CooperativeTagSearch:
         self.client.send_goal(goal.goal)
 
         self.client.wait_for_result()
+        
+        self.action_result = self.client.get_result()
 
         self.waypoints = []
         self.is_navigating = False

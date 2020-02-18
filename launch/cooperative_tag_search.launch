@@ -20,6 +20,7 @@
     <node pkg="path_drive" type="server.py" name="path_drive_server" output="screen"/>
 
     <node pkg="robot_localisation" type="program.py" name="robot_localisation" output="screen"/>
-
+    <!--
     <node pkg="cooperative_tag_search" type="program.py" name="cooperative_tag_search" output="screen"/>
+    -->
 </launch>
