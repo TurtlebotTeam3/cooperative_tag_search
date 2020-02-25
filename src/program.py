@@ -114,7 +114,7 @@ class CooperativeTagSearch:
 
     def _coop_tag_searching_receive(self, data):
         """
-        Handles messages on topic coop_tag/searching
+        Handles messages on topic coop_tag/searching. Remove tag from open list and add to searching list.
         """
 
         x = int(math.floor((data.point.x - self.map_info.origin.position.x)/self.map_info.resolution))
@@ -133,7 +133,7 @@ class CooperativeTagSearch:
 
     def _coop_tag_reached_receive(self, data):
         """
-        Handles messages on topic coop_tag/reached
+        Handles messages on topic coop_tag/reached. Remove tag from searching list and add to reached list.
         """
 
         x = int(math.floor((data.point.x - self.map_info.origin.position.x)/self.map_info.resolution))
@@ -151,7 +151,7 @@ class CooperativeTagSearch:
 
     def _find_tag_in_list(self, list, x, y):
         """
-        Find the tag which represents the given x and y in the given list
+        Find the tag which represents the given x and y in the given list.
         """
         for (y_known, x_known) in list:
             if x_known >= (x - self.tag_detection_radius) and x_known <= (x + self.tag_detection_radius) and y_known >= (y - self.tag_detection_radius) and y_known <= (y + self.tag_detection_radius):
@@ -161,7 +161,7 @@ class CooperativeTagSearch:
 
     def _handle_update_pose(self, data):
         """
-        Update Pose
+        Update the Pose.
         """
         self.pose = data.pose
         self.pose_converted = data.pose_converted
@@ -171,6 +171,9 @@ class CooperativeTagSearch:
             self._check_tag()
 
     def _check_tag(self):
+        """
+        Check if the robot is near the currently to approach tag and activate the blob detection.
+        """
         if self.pose_converted.x >= self.approaching.point.x - 10 and self.pose_converted.x <= self.approaching.point.x + 10 and self.pose_converted.y >= self.approaching.point.y - 10 and self.pose_converted.y <= self.approaching.point.y + 10:
             if self.near_tag == False:
                 rospy.loginfo("--- blob activated ---")
@@ -204,7 +207,6 @@ class CooperativeTagSearch:
                 if not self.localised:
                     # localise the robot
                     result = self.robot_localisation_service()
-                    #result = self.robot_localisation_service()
                     location_ok = raw_input("Localisation ok? (y for Yes / n for No) : ")
                     if location_ok == "y" or location_ok == "Y":
                         self.localised = result.localised
@@ -243,7 +245,7 @@ class CooperativeTagSearch:
 
     def _process_tag_list_from_service(self, data):
         """
-        Stores the tags received from the service localy
+        Stores the tags received from the service localy.
         """
         for point in data.tags.tags:
             self.tag_list.append((point.y, point.x))
@@ -272,7 +274,7 @@ class CooperativeTagSearch:
 
     def _calculate(self):
         """
-        Calculates the path to the nearest tag
+        Calculates the path to the nearest tag.
         """
         # select tag
         self.waypoints, _ , tag_to_approach = self._find_nearest_tag()
@@ -300,7 +302,7 @@ class CooperativeTagSearch:
 
     def _calculate_again_to_last(self):
         """
-        Calculates the path to the last tag
+        Calculate the path to the last tag again.
         """
         rospy.loginfo("Recalculate path to tag")
         # create the list of goals
@@ -320,7 +322,7 @@ class CooperativeTagSearch:
 
     def _navigate(self):
         """
-        Navigating to the waypoints
+        Navigating to the waypoints.
         """
         self.is_navigating = True
 
@@ -340,12 +342,10 @@ class CooperativeTagSearch:
 
     def _goal_reached_handle(self, reached):
         """
-        Handles the notification that goal is reached
+        Handles the notification that goal is reached.
         """
         
         if reached and self.approaching != None:
-            # check if position is the tag position
-            #if self.pose_converted.x >= self.approaching.point.x - 2 and self.pose_converted.x <= self.approaching.point.x + 2 and self.pose_converted.y >= self.approaching.point.y - 2 and self.pose_converted.y <= self.approaching.point.y + 1:
             rospy.loginfo('--- tag reached ---')
         
             bool_blob = Bool()
