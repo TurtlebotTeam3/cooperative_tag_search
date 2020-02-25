@@ -13,7 +13,8 @@ from geometry_msgs.msg import Pose, Point
 from std_msgs.msg import Bool
 from nav_msgs.msg import OccupancyGrid, MapMetaData
 
-
+from simple_camera.srv import EnableBlobDetection
+from simple_camera.srv import EnableTagKnownCheck
 
 class CooperativeTagSearch:
 
@@ -26,6 +27,7 @@ class CooperativeTagSearch:
         self.tag_list_searching = []
         self.tag_list_found = []
         self.approaching = None
+        self.near_tag = False
 
         self.waypoints = []
 
@@ -64,12 +66,19 @@ class CooperativeTagSearch:
         rospy.wait_for_service('get_tags')
         print("3")
         rospy.wait_for_service('localise_robot_service')
-
+        print("4")
+        rospy.wait_for_service('enable_blob_detection_service')
+        print("5")
+        rospy.wait_for_service('enable_tag_known_check_service')
+        
         print("--- services ---")
         # --- Services ---
         self.find_shortest_path_service = rospy.ServiceProxy('find_shortest_path_service', FindShortestPath)
         self.get_tags_service = rospy.ServiceProxy('get_tags', GetTags)
         self.robot_localisation_service = rospy.ServiceProxy('localise_robot_service', Localise)
+        self.enable_blob_detection_service = rospy.ServiceProxy('enable_blob_detection_service', EnableBlobDetection)
+        self.enable_tag_known_check_service = rospy.ServiceProxy('enable_tag_known_check_service', EnableTagKnownCheck)
+
 
         print("--- setup ---")
         self._setup()
@@ -88,6 +97,7 @@ class CooperativeTagSearch:
         """
         (y_known, x_known) = self._find_tag_in_list(self.tag_list, int(data.x), int(data.y))
         self.tag_list.remove((y_known, x_known))
+        #show tag_list list in rviz
         self.tag_list_searching.append((y_known, x_known))
 
     def _coop_tag_reached_receive(self, data):
@@ -96,7 +106,7 @@ class CooperativeTagSearch:
         """
         (y_known, x_known) = self._find_tag_in_list(self.tag_list_searching, int(data.x), int(data.y))
         self.tag_list_searching.remove((y_known, x_known))
-        self.tag_list_found.remove((y_known, x_known))
+        self.tag_list_found.append((y_known, x_known))
 
     def _find_tag_in_list(self, list, x, y):
         """
@@ -110,16 +120,66 @@ class CooperativeTagSearch:
         """
         Update Pose
         """
-        self.pose = data.pose
-        self.pose_converted = data.pose_converted
-        self.robot_pose_available = True
+        if self.map_resolution > 0:
+            self.pose.position.x = data.position.x
+            self.pose.position.y = data.position.y
+            self.pose.position.z = data.position.z
+            self.pose.orientation.x = data.orientation.x 
+            self.pose.orientation.y = data.orientation.y 
+            self.pose.orientation.z = data.orientation.z
+            self.pose.orientation.w = data.orientation.w 
+
+            self.robot_y_pose = self.pose.position.y
+            self.robot_x_pose = self.pose.position.x
+
+            self.robot_x_old = self.robot_x
+            self.robot_y_old = self.robot_y
+            self.robot_yaw_old = self.robot_yaw
+
+            self.robot_x = int(math.floor((self.robot_x_pose - self.map_offset_x)/self.map_resolution))
+            self.robot_y = int(math.floor((self.robot_y_pose - self.map_offset_y)/self.map_resolution))
+            self.robot_yaw = self._robot_angle()
+            
+            self.robot_pose_available = True
+            if self.approaching != None:
+                self._check_tag()
+
+    def _check_tag(self):
+        if self.robot_x >= self.approaching.x - 10 and self.robot_x <= self.approaching.x + 10 and self.robot_y >= self.approaching.y - 10 and self.robot_y <= self.approaching.y + 10:
+            if self.near_tag == False:
+                print "------> BLOB AKTIVIERT"
+                bool_blob = Bool()
+                bool_blob.data = True
+                self.enable_blob_detection_service(bool_blob)
+                bool_tag = Bool()
+                bool_tag.data = False
+                self.enable_tag_known_check_service(bool_tag)
+            self.near_tag = True
+        else:
+            if self.near_tag == True:
+                print "------> BLOB DEAKTIVIERT"
+                bool_blob = Bool()
+                bool_blob.data = False
+                self.enable_blob_detection_service(bool_blob)
+                bool_tag = Bool()
+                bool_tag.data = False
+                self.enable_tag_known_check_service(bool_tag)
+            self.near_tag = False
+
+    def _robot_angle(self):
+        """
+        Calculate the angle of the robot
+        """
+        orientation_q = self.pose.orientation
+        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        (_, _, yaw) = tf.transformations.euler_from_quaternion(orientation_list)
+        return yaw
 
     def run(self):
         #get the tag list
         if len(self.tag_list) == 0:
             service_response = self.get_tags_service()
             self._process_tag_list_from_service(service_response)
-
         while not rospy.is_shutdown():
             # start only if pose is available
             if self.robot_pose_available:
@@ -147,6 +207,9 @@ class CooperativeTagSearch:
         """
         for point in data.tags.tags:
             self.tag_list.append((point.y, point.x))
+        #TODO
+        #show tag_list list in rviz
+        
 
     def _find_nearest_tag(self):
         """
@@ -176,7 +239,7 @@ class CooperativeTagSearch:
         """
         # select tag
         self.waypoints, _ , tag_to_approach = self._find_nearest_tag()
-        
+
         # send to topic
         self.approaching = Point()
         self.approaching.x = tag_to_approach.path_x
@@ -184,6 +247,8 @@ class CooperativeTagSearch:
         
         self.pub_coop_tag_searching.publish(self.approaching)
 
+        #TODO
+        #show all waypoints in rviz
         self.waypointsAvailable = True
 
     def _navigate(self):
@@ -195,12 +260,12 @@ class CooperativeTagSearch:
         self.is_navigating = True
 
         if(len(self.waypoints) > 0):
-            print(self.waypoints)
+            #print(self.waypoints)
             point = self.waypoints.pop(0)
             x = point.path_x
             y = point.path_y
 
-            print(self.waypoints)
+            #print(self.waypoints)
 
             # -- move to goal --
             self._move(x, y)
@@ -232,7 +297,18 @@ class CooperativeTagSearch:
         print('Reached: ' + str(reached))
         if reached:
             # check if position is the tag position
-            if self.pose_converted.x >= self.approaching.x - 1 and self.pose_converted.x <= self.approaching.x + 1 and self.pose_converted.y >= self.approaching.y - 1 and self.pose_converted.y <= self.approaching.y + 1:
+            if self.robot_x >= self.approaching.x - 2 and self.robot_x <= self.approaching.x + 2 and self.robot_y >= self.approaching.y - 2 and self.robot_y <= self.approaching.y + 2:
+                
+                bool_blob = Bool()
+                bool_blob.data = False
+                self.enable_blob_detection_service(bool_blob)
+                bool_tag = Bool()
+                bool_tag.data = False
+                self.enable_tag_known_check_service(bool_tag)
+
+                #TODO
+                #show tag_tags_found_my_robo list in rviz
+
                 # publish that tag reached
                 self.pub_coop_tag_reached.publish(self.approaching)
                 count = 0
